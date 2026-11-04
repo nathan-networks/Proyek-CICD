@@ -26,7 +26,7 @@ jobs:
         run: npx htmlhint index.html
 
       - name: Run ESLint
-        run: npx eslint script.js --env browser
+        run: npx eslint script.js
 
   build-and-push:
     needs: test # Hanya berjalan jika job testing BERHASIL
