@@ -29,14 +29,14 @@ jobs:
         run: npx eslint script.js
 
   build-and-push:
-    needs: test # Hanya berjalan jika job testing BERHASIL
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' # Hanya push saat merge/push ke branch main
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (Optional, untuk multi-arch build)
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -65,3 +65,41 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: self-hosted
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy container
+        shell: pwsh
+        run: |
+          docker stop web-app
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "No existing web-app container to stop."
+          }
+
+          docker rm web-app
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "No existing web-app container to remove."
+          }
+
+          docker pull ghcr.io/${{ github.repository }}:latest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          docker run -d --name web-app -p ${{ secrets.APP_PORT }}:80 ghcr.io/${{ github.repository }}:latest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Health check
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds 3
+          curl.exe --fail --silent --show-error http://localhost:${{ secrets.APP_PORT }}/
+          if ($LASTEXITCODE -ne 0) { exit 1 }
