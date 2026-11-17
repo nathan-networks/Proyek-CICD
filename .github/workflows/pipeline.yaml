@@ -80,7 +80,11 @@ jobs:
 
       - name: Deploy container
         shell: pwsh
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}
         run: |
+          $image = $env:IMAGE_NAME.ToLowerInvariant()
+
           docker stop web-app
           if ($LASTEXITCODE -ne 0) {
             Write-Host "No existing web-app container to stop."
@@ -91,10 +95,10 @@ jobs:
             Write-Host "No existing web-app container to remove."
           }
 
-          docker pull ghcr.io/${{ github.repository }}:latest
+          docker pull "${image}:latest"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-          docker run -d --name web-app -p ${{ secrets.APP_PORT }}:80 ghcr.io/${{ github.repository }}:latest
+          docker run -d --name web-app -p ${{ secrets.APP_PORT }}:80 "${image}:latest"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Health check
@@ -103,3 +107,4 @@ jobs:
           Start-Sleep -Seconds 3
           curl.exe --fail --silent --show-error http://localhost:${{ secrets.APP_PORT }}/
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
